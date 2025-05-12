@@ -21,34 +21,6 @@ Under `src/events` and `src/functions`:
 - **Event files** (YAML) define API endpoints with `fn` mappings, input schemas, and response types.
 - **Function files** (YAML or `.ts`) describe tasks in a sequential workflow DAG.
 
-Example:
-```yaml
-http.post./query:
-  fn: process_query
-  body:
-    content:
-      application/json:
-        schema:
-          type: object
-          properties:
-            query:
-              type: string
-```
-
-```yaml
-# src/functions/process_query.yaml
-id: process_query
-summary: Processes user query with RAG agent
-tasks:
-  - id: get_repo_info
-    fn: set_repo
-    args:
-      repoUrl: <% inputs.body.repoUrl %>
-  - id: execute_agent
-    fn: rag_agent.query
-    args:
-      query: <% inputs.body.query %>
-```
 
 ---
 
@@ -95,14 +67,21 @@ godspeed serve
 
 ---
 
+## 🔐 Environment Variables
+
+To run the project, you need to configure your environment variables. In the `.env` file in the project root, add the following:
+
+```env
+# .env
+GEMINI_API_KEY=your_gemini_api_key_here
+
 ## 📥 Input Format (via Events)
 
 All routes follow Godspeed’s CloudEvent format defined in `src/events/*.yaml`. The expected structure typically looks like:
 
 ```json
 {
-  "query": "What does the function do?",
-  "repoUrl": "https://github.com/example/repo"
+  "repoUrl": "https://github.com/owner/repo/tree/branch"
 }
 ```
 
