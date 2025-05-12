@@ -74,7 +74,7 @@ To run the project, you need to configure your environment variables. In the `.e
 ```env
 # .env
 GEMINI_API_KEY=your_gemini_api_key_here
-
+```
 ## 📥 Input Format (via Events)
 
 All routes follow Godspeed’s CloudEvent format defined in `src/events/*.yaml`. The expected structure typically looks like:
