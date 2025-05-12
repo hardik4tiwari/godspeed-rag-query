@@ -1,0 +1,17 @@
+{
+  "files.exclude": {
+    "**/.DS_Store": false,
+    "**/.git": false,
+    "**/.hg": false,
+    "**/.svn": false,
+    "**/CVS": false,
+    "**/Thumbs.db": false,
+    "**/.template": true
+  },
+  "debug.allowBreakpointsEverywhere": true,
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/godspeedsystems/language-tools/main/schemas/events.json": "src/events/**/*.yaml",
+    "https://raw.githubusercontent.com/godspeedsystems/language-tools/main/schemas/workflow.json": "src/functions/**/*.yaml",
+    "https://raw.githubusercontent.com/godspeedsystems/language-tools/main/schemas/datasource.json": "src/datasources/**/*.yaml"
+  }
+}

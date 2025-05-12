@@ -1,0 +1,35 @@
+http.post./rag:
+  fn: query_rag
+  authn: false
+  argsFrom: params
+  params:
+    - name: Query
+      in: query
+      required: true
+      schema:
+          type: string
+          description: Query to the RAG agent
+          example:
+            Query: 'How to Create APIs Using Godspeed Events'
+
+  responses:
+    200:
+      description: Query processed successfully
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              answer:
+                type: string
+                description: Answer to the query
+    400:
+      description: Invalid query request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message

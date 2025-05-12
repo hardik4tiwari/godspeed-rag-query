@@ -1,0 +1,32 @@
+http.post./set-repo:
+  fn: set_repo
+  params:
+    - name: repoUrl
+      in: query
+      required: true
+      schema:
+        type: string
+        description: Github Link to the source Repositorty
+        example:
+          repoUrl: 'http://github.com/owner/repo/tree/branch'
+  responses:
+    200:
+      description: Document upserted successfully 
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                description: Success message
+    400:
+      description: Invalid URL
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message

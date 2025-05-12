@@ -1,0 +1,22 @@
+{
+  "mongodb": {
+    "mode": "single",
+    "dbName": "godspeed",
+    "ports": [
+      27017
+    ]
+  },
+  "postgresql": false,
+  "kafka": false,
+  "elasticsearch": false,
+  "redis": false,
+  "servicePort": 3000,
+  "gsNodeServiceVersion": "latest",
+  "projectName": "Embed_RAG_qeury",
+  "meta": {
+    "createTimestamp": "2025-05-12T11:30:36.736Z",
+    "lastUpdateTimestamp": "2025-05-12T11:30:36.736Z",
+    "cliVersionWhileCreation": "2.9.9",
+    "cliVersionWhileLastUpdate": "2.9.9"
+  }
+}
