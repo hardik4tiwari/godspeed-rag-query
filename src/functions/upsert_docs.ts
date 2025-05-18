@@ -1,118 +1,187 @@
 import { GSContext, GSStatus, PlainObject } from "@godspeedsystems/core";
-import { Document } from "langchain/document";
-import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-
-import simpleGit from "simple-git";
-import fs from "fs";
 import path from "path";
-import crypto from "crypto";
-import { error } from "console";
-import os from "os";
+import { promises as fs } from "fs";
+import { execSync } from "child_process";
+import simpleGit from "simple-git";
 
-// const STATE_FILE = "vector_store/state.json";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { TextLoader } from "langchain/document_loaders/fs/text";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+// import { MemoryVectorStore } from "langchain/vectorstores/memory";
+// import { Document } from "langchain/document";
 
-export default async function (ctx: GSContext, args: PlainObject): Promise<GSStatus> {
-  const { repoUrl } = args;
+// Constants
+const REPO_BASE_DIR = "tmp_repos";
+const VECTOR_DB_DIR = "vector_store";
 
-  if (!repoUrl || !repoUrl.includes("github.com")) {
-    return new GSStatus(false, 400,undefined,{error: "Invalid GitHub repo URL"});
+// Utility
+const pathExists = async (p: string) =>
+  fs.access(p).then(() => true).catch(() => false);
+
+export default async function embedRepoDocs(
+  ctx: GSContext,
+  args: PlainObject
+): Promise<GSStatus> {
+    const {
+        inputs: {
+            data: {
+                query       // query parameters from rest api
+            }
+        }, 
+     
+    }= ctx;
+  const githubUrl  = query.repoUrl;
+  // const githubUrl = args["githubUrl"];
+  if (!githubUrl || typeof githubUrl !== "string") {
+    return new GSStatus(false, 400, "Missing or invalid 'githubUrl'", {});
   }
+const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)/);
+if (!match) {
+  return new GSStatus(false, 400, "Invalid GitHub URL format", { githubUrl });
+}
 
-  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)/);
-  if (!match) return new GSStatus(false, 400,undefined,{error: "URL must be in format github.com/owner/repo/tree/branch"});
+const [, owner, repo, rawBranch] = match;
 
-  const [_, owner, repo, branch] = match;
-  const gitUrl = `https://github.com/${owner}/${repo}.git`;
-  // const tmpDir = `/tmp/${owner}_${repo}_${Date.now()}`;
+// Clean the branch properly
+const branch = rawBranch.trim().replace(/["'`\\{}()\[\]]/g, ""); // remove quotes/brackets
 
-  // this path ensures that tempDir path is valid for both linux and windows
-  const tmpDir = path.join(os.tmpdir(), `${owner}_${repo}_${Date.now()}`);
+// Now build a valid folder name
+const safeRepoName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
+const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
 
-  const vectorStorePath = path.join("vector_store", repo);
+const repoPath = path.join(REPO_BASE_DIR, safeRepoName);
+// const vectorDbPath = path.join(VECTOR_DB_DIR, `${safeRepoName}.json`);
+const metadataPath = path.join(REPO_BASE_DIR, `${safeRepoName}.commit`);
+  await fs.mkdir(REPO_BASE_DIR, { recursive: true });
+  await fs.mkdir(VECTOR_DB_DIR, { recursive: true });
+
   const git = simpleGit();
-  try {
-    if(tmpDir){
-      return new GSStatus(false, 400,undefined,{error: "Temporary directory already exists"});
-    }
-    //cloning the entire repo
-    await git.clone(gitUrl, tmpDir, ['--depth=1', '--branch', branch]);
 
-    const latestCommit = (await git.cwd(tmpDir).revparse(['HEAD'])).trim();
-    const prevState = loadState(repo) || { last_commit: null, file_hashes: {} };
-    //checking for a commit in repo, if no latest commit then no changes in doc
-    if (prevState.last_commit === latestCommit) {
-      return new GSStatus(true, 200, undefined, { message: "Repo already up to date (no changes)." });
-    }
-
-    const supportedExts = [".md", ".ts", ".js", ".json", ".yaml", ".yml"];
-    const docsToEmbed: Document[] = [];
-    const newFileHashes: Record<string, string> = {};
-
-    const walk = (dir: string) => {
-      for (const entry of fs.readdirSync(dir)) {
-        const fullPath = path.join(dir, entry);
-        const stat = fs.statSync(fullPath);
-
-        if (stat.isDirectory()) {
-          walk(fullPath);
-        } else if (supportedExts.includes(path.extname(entry))) {
-          const content = fs.readFileSync(fullPath, "utf8");
-          const relPath = path.relative(tmpDir, fullPath);
-          const hash = crypto.createHash("md5").update(content).digest("hex");
-          newFileHashes[relPath] = hash;
-          //chcking if the file has changed using the hash value
-          if (prevState.file_hashes[relPath] !== hash) {
-            docsToEmbed.push(new Document({
-              pageContent: content,
-              metadata: { path: relPath, repo, branch }
-            }));
-          }
-        }
-      }
-    };
-
-    walk(tmpDir);
-
-    const changedDocs = Object.values(docsToEmbed);
-    if (changedDocs.length === 0) {
-      return new GSStatus(true, 200, undefined, { message: "No files changed. Vector DB is up to date." });
-    }
-
-    const embeddings = new GoogleGenerativeAIEmbeddings({ apiKey: process.env.GEMINI_API_KEY! });
-    const vectorStore = await HNSWLib.fromDocuments(changedDocs, embeddings);
-    await vectorStore.save(vectorStorePath);
-
-    saveState(repo, {
-      last_commit: latestCommit,
-      file_hashes: newFileHashes
-    });
-
-    return new GSStatus(true, 200, undefined, {
-      message: `Embedded ${changedDocs.length} changed files.`,
-      changed: changedDocs.map(doc => doc.metadata.path)
-    });
-
-  }catch(err) {
-    ctx.logger.error("Error in upsert_docs_lc: %o", err);
-    return new GSStatus(false, 500,undefined,{error: "Failed to upsert docs"});
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (!(await pathExists(repoPath))) {
+    await git.clone(
+      `https://github.com/${owner}/${repo}.git`,
+      repoPath,
+      ["--branch", branch, "--depth", "1"]
+    );
+  } else {
+    await git.cwd(repoPath).pull();
   }
+
+  const currentCommit = execSync(
+    `git -C ${repoPath} rev-parse HEAD`
+  ).toString().trim();
+
+  const previousCommit = (await pathExists(metadataPath))
+    ? await fs.readFile(metadataPath, "utf-8")
+    : null;
+
+  if (currentCommit === previousCommit) {
+    return new GSStatus(true, 200, "No new commits to process", { collectionName });
+  }
+
+  const changedFiles = previousCommit
+    ? execSync(`git -C ${repoPath} diff --name-only ${previousCommit} ${currentCommit}`)
+        .toString()
+        .split("\n")
+        .filter(Boolean)
+    : await getAllTextFiles(repoPath);
+
+  const apiKey = ctx.config?.gemini?.apiKey || process.env.GOOGLE_API_KEY;
+if (!apiKey) {
+  return new GSStatus(false, 500, "Missing Gemini API key", {});
 }
 
-function loadState(repo: string) {
-  try {
-    const statePath = path.resolve("vector_store", `${repo}_state.json`);
-    return JSON.parse(fs.readFileSync(statePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
+const embedder = new GoogleGenerativeAIEmbeddings({
+  modelName: "embedding-001",
+  apiKey
+});
+//   const embedder = new GoogleGenerativeAIEmbeddings({
+//     modelName: "embedding-001",
+//     apiKey: process.env.GOOGLE_API_KEY,
+//   });
+const vectorStore = await Chroma.fromDocuments([], embedder, {
+    collectionName,
+    url: "http://localhost:8000",
+  });
+  const vectors: { embedding: number[]; content: string; metadata: any }[] = [];
 
-function saveState(repo: string, state: any) {
-  const dir = path.resolve("vector_store");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-  const statePath = path.join(dir, `${repo}_state.json`);
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  for (const fileRelPath of changedFiles) {
+    const absPath = path.join(repoPath, fileRelPath);
+    try {
+      const stat = await fs.stat(absPath);
+      if (!stat.isFile()) continue;
+
+      const loader = new TextLoader(absPath);
+      const rawDocs = await loader.load();
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1024,
+        chunkOverlap: 100,
+      });
+      let splitDocs = await splitter.splitDocuments(rawDocs);
+
+      // Filter empty pages
+      splitDocs = splitDocs.filter(doc => doc.pageContent?.trim());
+      await vectorStore.addDocuments(splitDocs);
+    //   for (const doc of splitDocs) {
+    //     const embedding = await embedder.embedQuery(doc.pageContent);
+    //     vectors.push({
+    //       embedding,
+    //       content: doc.pageContent,
+    //       metadata: doc.metadata
+    //     });
+    //   }
+
+    } catch (err) {
+      ctx.childLogger.warn(`Skipping unreadable file: ${fileRelPath}`);
+    }
+  }
+
+  await fs.writeFile(metadataPath, currentCommit, "utf-8");
+//   await fs.writeFile(vectorDbPath, JSON.stringify(vectors), "utf-8");
+
+  return new GSStatus(true, 200, undefined, { collectionName });
+
+}
+//   const vectorStore = await MemoryVectorStore.fromDocuments([], embedder);
+
+//   for (const fileRelPath of changedFiles) {
+//     const absPath = path.join(repoPath, fileRelPath);
+//     try {
+//       const stat = await fs.stat(absPath);
+//       if (!stat.isFile()) continue;
+
+//       const loader = new TextLoader(absPath);
+//       const rawDocs = await loader.load();
+//       const splitter = new RecursiveCharacterTextSplitter({
+//         chunkSize: 1024,
+//         chunkOverlap: 100,
+//       });
+//       const splitDocs: Document[] = await splitter.splitDocuments(rawDocs);
+//       await vectorStore.addDocuments(splitDocs);
+//     } catch (err) {
+//       ctx.childLogger.warn(`Skipping unreadable file: ${fileRelPath}`);
+//     }
+//   }
+
+//   await fs.writeFile(metadataPath, currentCommit, "utf-8");
+//   await fs.writeFile(vectorDbPath, JSON.stringify(vectorStore.memoryVectors), "utf-8");
+
+//   return new GSStatus(true, 200, undefined, { vectorDbPath });
+// }
+
+// Helper: get all relevant files for initial embed
+async function getAllTextFiles(dir: string, allFiles: string[] = [], root = dir): Promise<string[]> {
+  const files = await fs.readdir(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    const relPath = path.relative(root, fullPath);
+    const stat = await fs.stat(fullPath);
+    if (stat.isDirectory()) {
+      await getAllTextFiles(fullPath, allFiles, root);
+    } else if (/\.(ts|js|md|txt|yaml|yml)$/.test(file)) {
+      allFiles.push(relPath);
+    }
+  }
+  return allFiles;
 }
