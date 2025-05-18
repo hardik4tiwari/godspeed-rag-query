@@ -87,7 +87,7 @@ const metadataPath = path.join(REPO_BASE_DIR, `${safeRepoName}.commit`);
         .filter(Boolean)
     : await getAllTextFiles(repoPath);
 
-  const apiKey = ctx.config?.gemini?.apiKey || process.env.GOOGLE_API_KEY || "AIzaSyCNIOuuIfkrMA4pp5w3QXNNHyNZRHaRdS8";
+  const apiKey = ctx.config?.gemini?.apiKey || process.env.GOOGLE_API_KEY;
 if (!apiKey) {
   return new GSStatus(false, 500, "Missing Gemini API key", {});
 }

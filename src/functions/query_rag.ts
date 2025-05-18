@@ -52,7 +52,7 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   await runUpsert(ctx, { repoUrl });
   
   try {
-  const apiKey = process.env.GEMINI_API_KEY || "AIzaSyCNIOuuIfkrMA4pp5w3QXNNHyNZRHaRdS8";
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return new GSStatus(false, 500, undefined, { error: "Missing GEMINI_API_KEY" });
   }
