@@ -8,14 +8,10 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { Chroma } from "@langchain/community/vectorstores/chroma";
-// import { MemoryVectorStore } from "langchain/vectorstores/memory";
-// import { Document } from "langchain/document";
 
-// Constants
 const REPO_BASE_DIR = "tmp_repos";
 const VECTOR_DB_DIR = "vector_store";
 
-// Utility
 const pathExists = async (p: string) =>
   fs.access(p).then(() => true).catch(() => false);
 
@@ -32,7 +28,6 @@ export default async function embedRepoDocs(
      
     }= ctx;
   const githubUrl  = query.repoUrl;
-  // const githubUrl = args["githubUrl"];
   if (!githubUrl || typeof githubUrl !== "string") {
     return new GSStatus(false, 400, "Missing or invalid 'githubUrl'", {});
   }
@@ -43,15 +38,12 @@ if (!match) {
 
 const [, owner, repo, rawBranch] = match;
 
-// Clean the branch properly
 const branch = rawBranch.trim().replace(/["'`\\{}()\[\]]/g, ""); // remove quotes/brackets
 
-// Now build a valid folder name
 const safeRepoName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
 const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
 
 const repoPath = path.join(REPO_BASE_DIR, safeRepoName);
-// const vectorDbPath = path.join(VECTOR_DB_DIR, `${safeRepoName}.json`);
 const metadataPath = path.join(REPO_BASE_DIR, `${safeRepoName}.commit`);
   await fs.mkdir(REPO_BASE_DIR, { recursive: true });
   await fs.mkdir(VECTOR_DB_DIR, { recursive: true });
@@ -87,7 +79,7 @@ const metadataPath = path.join(REPO_BASE_DIR, `${safeRepoName}.commit`);
         .filter(Boolean)
     : await getAllTextFiles(repoPath);
 
-  const apiKey = ctx.config?.gemini?.apiKey || process.env.GOOGLE_API_KEY;
+  const apiKey = "AIzaSyA19pwj8bBo95b8ibf0yjnSErRn_CXRFz4";
 if (!apiKey) {
   return new GSStatus(false, 500, "Missing Gemini API key", {});
 }
@@ -96,10 +88,7 @@ const embedder = new GoogleGenerativeAIEmbeddings({
   modelName: "embedding-001",
   apiKey
 });
-//   const embedder = new GoogleGenerativeAIEmbeddings({
-//     modelName: "embedding-001",
-//     apiKey: process.env.GOOGLE_API_KEY,
-//   });
+
 const vectorStore = await Chroma.fromDocuments([], embedder, {
     collectionName,
     url: "http://localhost:8000",
@@ -120,17 +109,9 @@ const vectorStore = await Chroma.fromDocuments([], embedder, {
       });
       let splitDocs = await splitter.splitDocuments(rawDocs);
 
-      // Filter empty pages
       splitDocs = splitDocs.filter(doc => doc.pageContent?.trim());
       await vectorStore.addDocuments(splitDocs);
-    //   for (const doc of splitDocs) {
-    //     const embedding = await embedder.embedQuery(doc.pageContent);
-    //     vectors.push({
-    //       embedding,
-    //       content: doc.pageContent,
-    //       metadata: doc.metadata
-    //     });
-    //   }
+ 
 
     } catch (err) {
       ctx.childLogger.warn(`Skipping unreadable file: ${fileRelPath}`);
@@ -138,39 +119,11 @@ const vectorStore = await Chroma.fromDocuments([], embedder, {
   }
 
   await fs.writeFile(metadataPath, currentCommit, "utf-8");
-//   await fs.writeFile(vectorDbPath, JSON.stringify(vectors), "utf-8");
 
   return new GSStatus(true, 200, undefined, { collectionName });
 
 }
-//   const vectorStore = await MemoryVectorStore.fromDocuments([], embedder);
 
-//   for (const fileRelPath of changedFiles) {
-//     const absPath = path.join(repoPath, fileRelPath);
-//     try {
-//       const stat = await fs.stat(absPath);
-//       if (!stat.isFile()) continue;
-
-//       const loader = new TextLoader(absPath);
-//       const rawDocs = await loader.load();
-//       const splitter = new RecursiveCharacterTextSplitter({
-//         chunkSize: 1024,
-//         chunkOverlap: 100,
-//       });
-//       const splitDocs: Document[] = await splitter.splitDocuments(rawDocs);
-//       await vectorStore.addDocuments(splitDocs);
-//     } catch (err) {
-//       ctx.childLogger.warn(`Skipping unreadable file: ${fileRelPath}`);
-//     }
-//   }
-
-//   await fs.writeFile(metadataPath, currentCommit, "utf-8");
-//   await fs.writeFile(vectorDbPath, JSON.stringify(vectorStore.memoryVectors), "utf-8");
-
-//   return new GSStatus(true, 200, undefined, { vectorDbPath });
-// }
-
-// Helper: get all relevant files for initial embed
 async function getAllTextFiles(dir: string, allFiles: string[] = [], root = dir): Promise<string[]> {
   const files = await fs.readdir(dir);
   for (const file of files) {

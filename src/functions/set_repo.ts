@@ -8,10 +8,6 @@ export default async function (ctx: GSContext, args: PlainObject): Promise<GSSta
         inputs: {
             data: {
                 query       // query parameters from rest api
-                // params,  //path parameters from endpoint url
-                // body,    // request body in case of http and graphql apis, event data in case of message bus or socket
-                // user,    // user payload parsed from jwt token
-                // headers  //request headers in case of http and graphql apis
             }
         }, 
      
