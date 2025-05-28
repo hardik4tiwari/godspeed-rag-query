@@ -4,3 +4,4 @@ package-lock.json
 .vercel
 vector_store/*
 tmp_repos/*
+chroma/*
