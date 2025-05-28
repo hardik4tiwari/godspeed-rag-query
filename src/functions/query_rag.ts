@@ -34,23 +34,6 @@ export default async function (ctx: GSContext, args: PlainObject): Promise<GSSta
   const { repoUrl } = JSON.parse(fs.readFileSync(activePath, "utf-8"));
   // const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)/);
   // const [_, owner, repo, branch] = match;
-
-  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)/);
-if (!match) {
-  return new GSStatus(false, 400, "Invalid GitHub URL format", { repoUrl });
-}
-
-const [, owner, repo, rawBranch] = match;
-
-// Clean the branch properly
-const branch = rawBranch.trim().replace(/["'`\\{}()\[\]]/g, ""); // remove quotes/brackets
-
-// Now build a valid folder name
-const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
-
-  // const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)/);
-  // const [_, owner, repo, branch] = match;
-
   const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)/);
 if (!match) {
   return new GSStatus(false, 400, "Invalid GitHub URL format", { repoUrl });
@@ -68,7 +51,10 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   await runUpsert(ctx, { repoUrl });
   
   try {
-  const apiKey = "AIzaSyA19pwj8bBo95b8ibf0yjnSErRn_CXRFz4";
+    const apiKey = process.env.GEMINI_API_KEY!;
+    if (!apiKey) {
+    return new GSStatus(false, 500, undefined, { error: "Missing GEMINI_API_KEY" });
+    }
   const embeddings = new GoogleGenerativeAIEmbeddings({ apiKey });
   const vectorStore = await Chroma.fromExistingCollection(embeddings, {
     collectionName,
@@ -80,9 +66,6 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   
   const retriever = vectorStore.asRetriever();
   const docs = await retriever.invoke(query_);
-  if (!apiKey) {
-    return new GSStatus(false, 500, undefined, { error: "Missing GEMINI_API_KEY" });
-  }
   
   ctx.logger.info("Retrieved docs: %o", docs);
   if (!docs || docs.length === 0) {
@@ -91,9 +74,7 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   const contextText = docs.map(d => d.pageContent).join("\n\n");
   ctx.logger.info("Context content: %s", docs.map(doc => doc.pageContent).join("\n\n"));
 
-  // const contextText = docs.map(doc => doc.pageContent).join("\n\n");
 
-  const prompt = `Answer the question using the context below.\n\nContext:\n${contextText}\n\nQuestion: ${query_}`;
   const prompt = `Answer the question using the context below.\n\nContext:\n${contextText}\n\nQuestion: ${query_}`;
 
   const llm = new ChatGoogleGenerativeAI({
@@ -102,22 +83,15 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   });
 
   const response = await llm.invoke(prompt);
-  const response = await llm.invoke(prompt);
 
   return new GSStatus(true, 200, undefined, {
     result: response,
     used_docs: docs.map(d => d.metadata?.path || d.metadata?.filename || "unknown")
   });
-  return new GSStatus(true, 200, undefined, {
-    result: response,
-    used_docs: docs.map(d => d.metadata?.path || d.metadata?.filename || "unknown")
-  });
 
-} catch (err) {
+
+  } catch (err) {
   ctx.logger.error("RAG query failed: %o", err);
   return new GSStatus(false, 500, undefined, { error: "Error during RAG query" });
-} catch (err) {
-  ctx.logger.error("RAG query failed: %o", err);
-  return new GSStatus(false, 500, undefined, { error: "Error during RAG query" });
-  }
+  } 
 }

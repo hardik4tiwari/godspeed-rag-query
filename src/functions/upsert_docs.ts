@@ -4,11 +4,6 @@ import { promises as fs } from "fs";
 import { execSync } from "child_process";
 import simpleGit from "simple-git";
 
-import path from "path";
-import { promises as fs } from "fs";
-import { execSync } from "child_process";
-import simpleGit from "simple-git";
-
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -84,7 +79,7 @@ const metadataPath = path.join(REPO_BASE_DIR, `${safeRepoName}.commit`);
         .filter(Boolean)
     : await getAllTextFiles(repoPath);
 
-  const apiKey = "AIzaSyA19pwj8bBo95b8ibf0yjnSErRn_CXRFz4";
+  const apiKey = process.env.GEMINI_API_KEY!;
 if (!apiKey) {
   return new GSStatus(false, 500, "Missing Gemini API key", {});
 }
