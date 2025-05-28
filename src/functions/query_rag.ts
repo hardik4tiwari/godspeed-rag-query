@@ -8,6 +8,8 @@ import path from "path";
 
 
 
+
+
 export default async function (ctx: GSContext, args: PlainObject): Promise<GSStatus> {
 
     const {
@@ -30,6 +32,22 @@ export default async function (ctx: GSContext, args: PlainObject): Promise<GSSta
   }
   
   const { repoUrl } = JSON.parse(fs.readFileSync(activePath, "utf-8"));
+  // const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)/);
+  // const [_, owner, repo, branch] = match;
+
+  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)/);
+if (!match) {
+  return new GSStatus(false, 400, "Invalid GitHub URL format", { repoUrl });
+}
+
+const [, owner, repo, rawBranch] = match;
+
+// Clean the branch properly
+const branch = rawBranch.trim().replace(/["'`\\{}()\[\]]/g, ""); // remove quotes/brackets
+
+// Now build a valid folder name
+const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g, "_");
+
   // const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)/);
   // const [_, owner, repo, branch] = match;
 
@@ -76,6 +94,7 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   // const contextText = docs.map(doc => doc.pageContent).join("\n\n");
 
   const prompt = `Answer the question using the context below.\n\nContext:\n${contextText}\n\nQuestion: ${query_}`;
+  const prompt = `Answer the question using the context below.\n\nContext:\n${contextText}\n\nQuestion: ${query_}`;
 
   const llm = new ChatGoogleGenerativeAI({
     apiKey,
@@ -83,12 +102,20 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   });
 
   const response = await llm.invoke(prompt);
+  const response = await llm.invoke(prompt);
 
   return new GSStatus(true, 200, undefined, {
     result: response,
     used_docs: docs.map(d => d.metadata?.path || d.metadata?.filename || "unknown")
   });
+  return new GSStatus(true, 200, undefined, {
+    result: response,
+    used_docs: docs.map(d => d.metadata?.path || d.metadata?.filename || "unknown")
+  });
 
+} catch (err) {
+  ctx.logger.error("RAG query failed: %o", err);
+  return new GSStatus(false, 500, undefined, { error: "Error during RAG query" });
 } catch (err) {
   ctx.logger.error("RAG query failed: %o", err);
   return new GSStatus(false, 500, undefined, { error: "Error during RAG query" });

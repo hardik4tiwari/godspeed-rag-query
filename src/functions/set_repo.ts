@@ -14,10 +14,6 @@ export default async function (ctx: GSContext, args: PlainObject): Promise<GSSta
     }= ctx;
   const repoUrl  = query.repoUrl;
 
-  // if(repoUrl){
-  //   return new GSStatus(false, 200, undefined, {error: "Invalid GitHub repo URL", repoUrl});
-  // }
-
   if (!repoUrl || !repoUrl.includes("github.com")) {
     return new GSStatus(false, 400, undefined, {error: repoUrl});
   }

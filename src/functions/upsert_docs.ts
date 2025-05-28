@@ -4,6 +4,11 @@ import { promises as fs } from "fs";
 import { execSync } from "child_process";
 import simpleGit from "simple-git";
 
+import path from "path";
+import { promises as fs } from "fs";
+import { execSync } from "child_process";
+import simpleGit from "simple-git";
+
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
