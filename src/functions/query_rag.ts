@@ -51,7 +51,7 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   await runUpsert(ctx, { repoUrl });
   
   try {
-    const apiKey = process.env.GEMINI_API_KEY!;
+    const apiKey = "AIzaSyA19pwj8bBo95b8ibf0yjnSErRn_CXRFz4";
     if (!apiKey) {
     return new GSStatus(false, 500, undefined, { error: "Missing GEMINI_API_KEY" });
     }
@@ -75,7 +75,10 @@ const collectionName = `${owner}__${repo}__${branch}`.replace(/[^a-zA-Z0-9_\-]/g
   ctx.logger.info("Context content: %s", docs.map(doc => doc.pageContent).join("\n\n"));
 
 
-  const prompt = `Answer the question using the context below.\n\nContext:\n${contextText}\n\nQuestion: ${query_}`;
+  const prompt = `
+  You are an AI assistant specialized in answering questions based on provided context.
+  
+  `;
 
   const llm = new ChatGoogleGenerativeAI({
     apiKey,
